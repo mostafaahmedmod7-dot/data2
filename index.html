@@ -651,11 +651,18 @@
       return;
     }
 
+    if(!allRows.length){
+    alert('لا يوجد بيانات للتوزيع');
+    return;
+    }
+
     const ws = XLSX.utils.json_to_sheet(allRows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Distribution');
-    console.log(allRows);
-    alert('تم التوزيع بنجاح بدون تحميل ملف');
+
+    XLSX.writeFile(wb, 'Distribution.xlsx');
+
+    alert('تم التوزيع بنجاح وتم تحميل الملف');
 
     await loadDataTypes();
 
