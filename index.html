@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>واجهة التوزيع</title>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root{
+      --bg:#f5f7fb;
+      --card:#ffffff;
+      --border:#dbe2ea;
+      --text:#111827;
+      --muted:#6b7280;
+      --primary:#2563eb;
+      --danger:#ef4444;
+      --shadow:0 6px 20px rgba(0,0,0,.06);
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      background:var(--bg);
+      font-family:Tahoma,Arial,sans-serif;
+      color:var(--text)
+    }
+    .wrap{max-width:1700px;margin:auto;padding:10px}
+    .panel{
+      background:var(--card);
+      border:1px solid var(--border);
+      border-radius:12px;
+      padding:10px;
+      box-shadow:var(--shadow);
+      margin-bottom:10px
+    }
+    .topbar{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      flex-wrap:wrap;
+      margin-bottom:10px
+    }
+    .btn{
+      border:none;
+      background:var(--primary);
+      color:#fff;
+      padding:7px 10px;
+      border-radius:8px;
+      cursor:pointer;
+      font-size:12px;
+      font-weight:bold
+    }
+    .btn-danger{background:var(--danger)}
+    .btn-ghost{background:#f3f4f6;color:#111827}
+    .types-bar{
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      align-items:flex-start
+    }
+    .type-card{
+      background:#fff;
+      border:1px solid var(--border);
+      border-radius:10px;
+      padding:8px;
+      min-width:118px;
+      max-width:145px;
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+      box-shadow:0 3px 10px rgba(0,0,0,.03)
+    }
+    .type-name{
+      font-size:12px;
+      font-weight:bold;
+      text-align:center;
+      cursor:pointer;
+      user-select:none;
+      line-height:1.2;
+      word-break:break-word
+    }
+    .type-count{text-align:center;font-size:11px;color:var(--muted)}
+    .type-actions{display:flex;gap:5px}
+    .type-actions button{
+      flex:1;
+      padding:5px 6px;
+      font-size:10px;
+      border-radius:6px
+    }
+    .total-box{
+      margin-top:10px;
+      font-size:12px;
+      font-weight:bold;
+      background:#fff;
+      border:1px solid var(--border);
+      border-radius:8px;
+      padding:8px 10px;
+      width:fit-content
+    }
+    .sales-head,.sales-row{
+      display:grid;
+      grid-template-columns:180px 90px 140px 120px;
+      gap:6px;
+      align-items:center;
+    }
+    .sales-head{
+      font-size:11px;
+      color:var(--muted);
+      margin-bottom:6px;
+      font-weight:bold
+    }
+    .sales-list{max-height:500px;overflow:auto}
+    input,select{
+      width:100%;
+      border:1px solid var(--border);
+      border-radius:8px;
+      padding:7px 9px;
+      font-size:12px;
+      background:#fff
+    }
+    .mini-note{font-size:11px;color:var(--muted);margin-top:2px}
+    .placeholder{font-size:12px;color:var(--muted);padding:8px 0}
+    .popup-bg{
+      position:fixed;
+      inset:0;
+      background:rgba(0,0,0,.35);
+      display:none;
+      align-items:center;
+      justify-content:center;
+      z-index:9999
+    }
+    .popup-bg.show{display:flex}
+    .popup{
+      width:300px;
+      background:#fff;
+      border-radius:14px;
+      padding:14px;
+      box-shadow:0 30px 90px rgba(0,0,0,.25);
+      animation:pop .18s ease
+    }
+    @keyframes pop{
+      from{transform:scale(.9);opacity:0}
+      to{transform:scale(1);opacity:1}
+    }
+    .popup-top{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      margin-bottom:10px
+    }
+    .popup-title{font-size:14px;font-weight:bold}
+    .close-btn{
+      border:none;
+      background:#f3f4f6;
+      padding:5px 8px;
+      border-radius:8px;
+      cursor:pointer
+    }
+    .summary-line{
+      display:flex;
+      justify-content:space-between;
+      font-size:12px;
+      padding:5px 0;
+      border-bottom:1px dashed #e5e7eb
+    }
+    .summary-line:last-child{border-bottom:none}
+    @media(max-width:800px){
+      .sales-head,.sales-row{grid-template-columns:1fr}
+      .type-card{width:100%;max-width:none}
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="panel">
+    <div class="topbar">
+      <strong>أنواع الداتا</strong>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn" id="btnAddType">+ إضافة نوع داتا</button>
+        <button class="btn btn-ghost" id="btnRefresh">ريفريش</button>
+        <button class="btn btn-danger" id="btnDeleteType">حذف نوع داتا</button>
+      </div>
+    </div>
+    <div class="types-bar" id="typesList" style="margin-top:10px"></div>
+    <div class="total-box">إجمالي الأرقام: <span id="grandTotal">0</span></div>
+  </div>
+
+  <div class="panel">
+    <div class="topbar">
+      <strong>جدول السيلز</strong>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn" id="btnDistribute">توزيع سيستم</button>
+        <button class="btn" id="btnAddSales">إضافة سيلز</button>
+        <button class="btn btn-danger" id="btnDeleteSales">حذف السيلز</button>
+      </div>
+    </div>
+    <div class="sales-head">
+      <div>اسم السيلز</div>
+      <div>عدد الأرقام</div>
+      <div>نوع الداتا</div>
+      <div>الخط</div>
+    </div>
+    <div class="sales-list" id="salesList"></div>
+  </div>
+</div>
+
+<div class="popup-bg" id="popupBg" aria-hidden="true">
+  <div class="popup">
+    <div class="popup-top">
+      <div class="popup-title" id="popupTitle">ملخص</div>
+      <button class="close-btn" id="closePopup">✕</button>
+    </div>
+    <div id="popupBody"></div>
+  </div>
+</div>
+
+<script>
+  const SUPABASE_URL = 'https://fyjiizuumgoeuxppdect.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ5amlpenV1bWdvZXV4cHBkZWN0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkxMTg4MjgsImV4cCI6MjA5NDY5NDgyOH0.M8BvjRYszipT-JNOMwcOhQkWT2g8yTLXHuAeuuMscbs';
+  const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  const state = {
+    dataTypes: [],
+    sales: []
+  };
+
+  const $ = (id) => document.getElementById(id);
+  const SALES_PREFS_KEY = 'mozmen_sales_prefs_v1';
+
+  function normalizeNumber(v){
+    v = String(v ?? '').trim().replace(/\D/g,'');
+    if(!v) return '';
+    if(v.startsWith('00')) v = v.slice(2);
+    if(v.startsWith('01') && v.length === 11) v = '20' + v.slice(1);
+    return v;
+  }
+
+  function getCompany(num){
+    if(num.startsWith('2010') || num.startsWith('010')) return 'فودافون';
+    if(num.startsWith('2011') || num.startsWith('011')) return 'اتصالات';
+    if(num.startsWith('2012') || num.startsWith('012')) return 'أورانج';
+    if(num.startsWith('2015') || num.startsWith('015')) return 'WE';
+    return 'أخرى';
+  }
+
+  async function readNumbersFromExcel(file){
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf,{type:'array'});
+    const seen = new Set();
+    const out = [];
+    for(const sheetName of wb.SheetNames){
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName],{header:1,defval:''});
+      for(const row of rows){
+        for(const cell of row){
+          const n = normalizeNumber(cell);
+          if(/^20\d{10}$/.test(n) && !seen.has(n)){
+            seen.add(n);
+            out.push(n);
+          }
+        }
+      }
+    }
+    return out;
+  }
+
+  function countsFor(list){
+    const c = { total:list.length, فودافون:0, اتصالات:0, أورانج:0, WE:0 };
+    list.forEach(n => {
+      const x = getCompany(n);
+      if(c[x] !== undefined) c[x]++;
+    });
+    return c;
+  }
+
+  function allNumbers(){
+    return state.dataTypes.flatMap(t => t.numbers);
+  }
+
+  function updateGrandTotal(){
+    $('grandTotal').textContent = allNumbers().length;
+  }
+
+  function showPopup(typeName){
+    const type = state.dataTypes.find(t => t.name === typeName);
+    if(!type) return;
+    const c = countsFor(type.numbers);
+    $('popupTitle').textContent = `ملخص ${type.name}`;
+    $('popupBody').innerHTML = `
+      <div class="summary-line"><span>الإجمالي</span><b>${c.total}</b></div>
+      <div class="summary-line"><span>فودافون</span><b>${c['فودافون']}</b></div>
+      <div class="summary-line"><span>اتصالات</span><b>${c['اتصالات']}</b></div>
+      <div class="summary-line"><span>أورانج</span><b>${c['أورانج']}</b></div>
+      <div class="summary-line"><span>WE</span><b>${c['WE']}</b></div>
+    `;
+    $('popupBg').classList.add('show');
+    $('popupBg').setAttribute('aria-hidden','false');
+  }
+
+  function closePopup(){
+    $('popupBg').classList.remove('show');
+    $('popupBg').setAttribute('aria-hidden','true');
+  }
+
+  function loadSalesPrefs(){
+    try{
+      return JSON.parse(localStorage.getItem(SALES_PREFS_KEY) || '{}') || {};
+    }catch{
+      return {};
+    }
+  }
+
+  function saveSalesPrefs(){
+    const prefs = {};
+    for(const s of state.sales){
+      prefs[s.name] = {
+        count: Number(s.count || 0),
+        temp: s.temp || '',
+        line: s.line || 'فودافون'
+      };
+    }
+    localStorage.setItem(SALES_PREFS_KEY, JSON.stringify(prefs));
+  }
+
+  function renderTypes(){
+    const box = $('typesList');
+    if(!state.dataTypes.length){
+      box.innerHTML = '<div class="placeholder">لا يوجد أنواع داتا حتى الآن</div>';
+      updateGrandTotal();
+      return;
+    }
+
+    box.innerHTML = state.dataTypes.map((t,i) => `
+      <div class="type-card" data-index="${i}">
+        <div class="type-name" data-role="name">${t.name}</div>
+        <div class="type-count">${t.numbers.length} رقم</div>
+        <div class="type-actions">
+          <button class="btn" data-role="load">إضافة</button>
+        </div>
+        <div class="mini-note"></div>
+      </div>
+    `).join('');
+
+    box.querySelectorAll('.type-card').forEach(card => {
+      const idx = Number(card.dataset.index);
+
+      card.querySelector('[data-role="name"]').addEventListener('dblclick', () => {
+        showPopup(state.dataTypes[idx].name);
+      });
+
+      card.querySelector('[data-role="load"]').addEventListener('click', async () => {
+  const file = document.createElement('input');
+  file.type = 'file';
+  file.accept = '.xlsx,.xls,.xlsm';
+
+  file.onchange = async () => {
+    if(!file.files?.[0]) return;
+
+    const nums = await readNumbersFromExcel(file.files[0]);
+    if(!nums.length){
+      alert('لم يتم العثور على أرقام صالحة في الملف');
+      return;
+    }
+
+    // إزالة التكرار داخل الملف نفسه
+    const seenInFile = new Set();
+    const uniqueNums = nums.filter(n => {
+      if (seenInFile.has(n)) return false;
+      seenInFile.add(n);
+      return true;
+    });
+
+    // جلب الأرقام الموجودة مسبقًا في نفس نوع الداتا
+    const { data: existingRows, error: existingError } = await supabaseClient
+      .from('numbers')
+      .select('number')
+      .eq('data_type', state.dataTypes[idx].name)
+      .in('number', uniqueNums);
+
+    if (existingError) {
+      console.error(existingError);
+      alert('فشل فحص الأرقام المكررة');
+      return;
+    }
+
+    const existingSet = new Set((existingRows || []).map(r => r.number));
+    const newNums = uniqueNums.filter(n => !existingSet.has(n));
+
+    if (newNums.length) {
+      const rows = newNums.map(n => ({
+        number: n,
+        data_type: state.dataTypes[idx].name,
+        distributed: false
+      }));
+
+      const { error: insertError } = await supabaseClient
+        .from('numbers')
+        .insert(rows);
+
+      if (insertError) {
+        console.error(insertError);
+        alert('فشل رفع الداتا');
+        return;
+      }
+    }
+
+    const skipped = nums.length - newNums.length;
+
+    alert(
+      `تم إضافة ${newNums.length} رقم\n` +
+      `وتم تجاوز ${skipped} رقم متكرر`
+    );
+
+    await loadDataTypes();
+  };
+
+  file.click();
+});
+    });
+
+    updateGrandTotal();
+  }
+
+  function renderSales(){
+    const box = $('salesList');
+
+    if(!state.sales.length){
+      box.innerHTML = '<div class="placeholder">لا يوجد سيلز</div>';
+      return;
+    }
+
+    box.innerHTML = state.sales.map((s,i) => `
+      <div class="sales-row" data-index="${i}">
+        <div class="sales-name">${s.name}</div>
+        <input type="number" min="0" value="${s.count ?? 0}" data-field="count" />
+        <select data-field="temp" ${state.dataTypes.length ? '' : 'disabled'}>
+          ${state.dataTypes.length ? state.dataTypes.map(t => `
+            <option value="${t.name}" ${s.temp===t.name?'selected':''}>${t.name}</option>
+          `).join('') : '<option value="">لا يوجد أنواع</option>'}
+        </select>
+        <select data-field="line">
+          <option value="فودافون" ${s.line==='فودافون'?'selected':''}>فودافون</option>
+          <option value="أورانج" ${s.line==='أورانج'?'selected':''}>أورانج</option>
+          <option value="اتصالات" ${s.line==='اتصالات'?'selected':''}>اتصالات</option>
+          <option value="WE" ${s.line==='WE'?'selected':''}>WE</option>
+        </select>
+      </div>
+    `).join('');
+
+    box.querySelectorAll('.sales-row').forEach(row => {
+      const idx = Number(row.dataset.index);
+
+      row.querySelectorAll('select,input').forEach(el => {
+        const eventName = el.tagName === 'SELECT' ? 'change' : 'input';
+
+        el.addEventListener(eventName, () => {
+          const field = el.dataset.field;
+
+          if(field === 'count'){
+            state.sales[idx][field] = Math.max(0, parseInt(el.value || '0', 10));
+          } else {
+            state.sales[idx][field] = el.value;
+          }
+
+          saveSalesPrefs();
+        });
+      });
+    });
+  }
+
+  async function addType(){
+    const name = prompt('اكتب اسم نوع الداتا');
+    if(!name || !name.trim()) return;
+    const n = name.trim();
+
+    const exists = state.dataTypes.some(t => t.name === n);
+    if(exists){
+      alert('النوع موجود بالفعل');
+      return;
+    }
+
+    const { error } = await supabaseClient.from('data_types').insert({ name: n });
+    if(error){
+      alert('حدث خطأ');
+      console.error(error);
+      return;
+    }
+
+    await loadDataTypes();
+  }
+
+  async function deleteType(){
+    const name = prompt('اكتب اسم نوع الداتا الذي تريد حذفه');
+    if(!name || !name.trim()) return;
+    const target = name.trim();
+
+    const typeExists = state.dataTypes.some(t => t.name === target);
+    if(!typeExists) return alert('النوع غير موجود');
+
+    if(!confirm(`تأكيد حذف نوع الداتا: ${target} ؟`)) return;
+
+    const { error: deleteNumbersError } = await supabaseClient
+      .from('numbers')
+      .delete()
+      .eq('data_type', target);
+
+    if(deleteNumbersError){
+      console.error(deleteNumbersError);
+      alert('فشل حذف أرقام النوع');
+      return;
+    }
+
+    const { error: deleteTypeError } = await supabaseClient
+      .from('data_types')
+      .delete()
+      .eq('name', target);
+
+    if(deleteTypeError){
+      console.error(deleteTypeError);
+      alert('فشل حذف النوع');
+      return;
+    }
+
+    const prefs = loadSalesPrefs();
+    for(const key of Object.keys(prefs)){
+      if(prefs[key].temp === target){
+        prefs[key].temp = '';
+      }
+    }
+    localStorage.setItem(SALES_PREFS_KEY, JSON.stringify(prefs));
+
+    state.sales = state.sales.map(s => s.temp === target ? { ...s, temp: '' } : s);
+    await loadDataTypes();
+    renderSales();
+    updateGrandTotal();
+  }
+
+  async function addSales(){
+    const name = prompt('اكتب اسم السيلز');
+    if(!name || !name.trim()) return;
+    const n = name.trim();
+
+    const exists = state.sales.some(s => s.name === n);
+    if(exists){
+      alert('السيلز موجود بالفعل');
+      return;
+    }
+
+    const { error } = await supabaseClient.from('sales').insert({ name: n });
+    if(error){
+      console.error(error);
+      alert('حدث خطأ');
+      return;
+    }
+
+    await loadSales();
+  }
+
+  async function deleteSales(){
+    const name = prompt('اكتب اسم السيلز الذي تريد حذفه');
+    if(!name || !name.trim()) return;
+    const target = name.trim();
+
+    const idx = state.sales.findIndex(s => s.name === target);
+    if(idx === -1) return alert('السيلز غير موجود');
+    if(!confirm(`تأكيد حذف السيلز: ${target} ؟`)) return;
+
+    const { error } = await supabaseClient
+      .from('sales')
+      .delete()
+      .eq('name', target);
+
+    if(error){
+      console.error(error);
+      alert('فشل حذف السيلز');
+      return;
+    }
+
+    const prefs = loadSalesPrefs();
+    delete prefs[target];
+    localStorage.setItem(SALES_PREFS_KEY, JSON.stringify(prefs));
+
+    await loadSales();
+  }
+
+  function getPriorityLines(start){
+    const fixed = ['أورانج', 'اتصالات', 'WE', 'فودافون'];
+    if(!fixed.includes(start)) return fixed;
+    return [start, ...fixed.filter(x => x !== start)];
+  }
+
+  function formatPhone(num){
+    const m = num.match(/^20(\d{3})(\d{3})(\d{4})$/);
+    if(!m) return '+' + num;
+    return `+20 ${m[1]} ${m[2]} ${m[3]}`;
+  }
+
+  async function distributeSystem(){
+    if(!state.sales.length) return alert('لا يوجد سيلز');
+    if(!state.dataTypes.length) return alert('لا يوجد أنواع داتا');
+
+    let allRows = [];
+
+    for(const sale of state.sales){
+      const count = Number(sale.count || 0);
+      if(!count) continue;
+
+      const type = state.dataTypes.find(t => t.name === sale.temp);
+      if(!type || !type.numbers.length) continue;
+
+      const selected = [];
+      const priority = getPriorityLines(sale.line || 'فودافون');
+
+      for(const line of priority){
+        const filtered = type.numbers.filter(n => getCompany(n) === line);
+        for(const num of filtered){
+          if(selected.length >= count) break;
+          if(!selected.includes(num)) selected.push(num);
+        }
+        if(selected.length >= count) break;
+      }
+
+      if(!selected.length) continue;
+
+      const { error } = await supabaseClient
+        .from('numbers')
+        .update({ distributed: true })
+        .in('number', selected)
+        .eq('data_type', sale.temp);
+
+      if(error){
+        console.error(error);
+        alert('حدث خطأ أثناء التوزيع');
+        return;
+      }
+
+      type.numbers = type.numbers.filter(n => !selected.includes(n));
+
+      selected.forEach(num => {
+        allRows.push({
+          Name: num,
+          Phone: formatPhone(num),
+          Tags: sale.temp,
+          Salesperson: sale.name
+        });
+      });
+    }
+
+    if(!allRows.length){
+      alert('لا يوجد بيانات للتوزيع');
+      return;
+    }
+
+    const ws = XLSX.utils.json_to_sheet(allRows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Distribution');
+    console.log(allRows);
+    alert('تم التوزيع بنجاح بدون تحميل ملف');
+
+    await loadDataTypes();
+
+    state.sales = state.sales.map(s => ({ ...s, count: 0 }));
+    saveSalesPrefs();
+    renderSales();
+    updateGrandTotal();
+    alert('تم التوزيع بنجاح');
+  }
+
+  async function loadDataTypes(){
+    const { data, error } = await supabaseClient.from('data_types').select('*').order('name', { ascending: true });
+    if(error){
+      console.error(error);
+      return;
+    }
+
+    state.dataTypes = [];
+
+    for(const item of data || []){
+      const { data: numbersData, error: numbersError } = await supabaseClient
+        .from('numbers')
+        .select('number')
+        .eq('data_type', item.name)
+        .eq('distributed', false)
+        .order('number', { ascending: true });
+
+      if(numbersError){
+        console.error(numbersError);
+        continue;
+      }
+
+      state.dataTypes.push({
+        name: item.name,
+        numbers: (numbersData || []).map(x => x.number)
+      });
+    }
+
+    renderTypes();
+    renderSales();
+    updateGrandTotal();
+  }
+
+  async function loadSales(){
+    const { data, error } = await supabaseClient.from('sales').select('*').order('name', { ascending: true });
+    if(error){
+      console.error(error);
+      return;
+    }
+
+    const prefs = loadSalesPrefs();
+    const defaultType = state.dataTypes[0]?.name || '';
+
+    state.sales = (data || []).map(x => {
+      const saved = prefs[x.name] || {};
+      return {
+        name: x.name,
+        count: Number(saved.count ?? 0),
+        temp: saved.temp ?? defaultType,
+        line: saved.line ?? 'فودافون'
+      };
+    });
+
+    saveSalesPrefs();
+    renderSales();
+  }
+
+  async function startApp(){
+    await loadDataTypes();
+    await loadSales();
+    renderTypes();
+    renderSales();
+    updateGrandTotal();
+  }
+
+  $('btnAddType').addEventListener('click', addType);
+  $('btnDeleteType').addEventListener('click', deleteType);
+  $('btnAddSales').addEventListener('click', addSales);
+  $('btnDeleteSales').addEventListener('click', deleteSales);
+  $('btnDistribute').addEventListener('click', distributeSystem);
+  $('btnRefresh').addEventListener('click', startApp);
+
+  $('closePopup').addEventListener('click', closePopup);
+  $('popupBg').addEventListener('click', (e) => {
+    if(e.target === $('popupBg')) closePopup();
+  });
+
+  window.addEventListener('keydown', (e) => {
+    if(e.key === 'Escape') closePopup();
+  });
+
+  startApp();
+</script>
+</body>
+</html>
